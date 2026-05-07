@@ -2,8 +2,6 @@
 
 This project explores how generative AI and transformer-based NLP can support early mental health signal detection from multilingual user-written text. The system combines a fine-tuned XLM-RoBERTa classifier with a FLAN-T5 response generator to classify mental health-related language and produce short supportive messages.
 
-> Academic group project for IB9LQ0 Generative AI and AI Applications, University of Warwick MSBA.
-
 ## Project Overview
 
 The notebook builds a two-stage NLP workflow:
@@ -86,7 +84,7 @@ The confusion matrix showed overlap between depression and suicidal language, wh
 ## Key Learnings
 
 - Class weighting improves fairness toward underrepresented labels, but does not fully solve semantic overlap between mental health categories.
-- XLM-RoBERTa is useful for multilingual experimentation, though fine-tuning data language coverage strongly affects real-world robustness.
+- XLM-RoBERTa is useful for **multilingual experimentation**, though fine-tuning data language coverage strongly affects real-world robustness.
 - Generating empathetic responses requires additional safety design, especially for crisis-related or self-harm inputs.
 - A production version would need stronger guardrails, escalation guidance, human review, and domain-specific validation.
 
