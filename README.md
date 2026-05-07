@@ -1,8 +1,8 @@
 # Multilingual Mental Health Sentiment Analysis & Response Generation
 
-An academic NLP prototype that combines **XLM-RoBERTa** classification with **FLAN-T5 Large** generation to detect mental-health-related signals from text and produce short supportive responses.
+An academic NLP prototype where I built and fine-tuned a transformer-based mental health text classifier, then connected it with a generative AI response layer. The project combines **XLM-RoBERTa** for multilingual classification and **FLAN-T5 Large** for supportive response generation.
 
-The project was developed for the University of Warwick MSBA module **IB9LQ0 Generative AI and AI Applications**. The implementation is contained in a single notebook and demonstrates a full workflow from Kaggle data ingestion to model fine-tuning, evaluation, multilingual testing, and response generation.
+The project was developed for the University of Warwick MSBA module **IB9LQ0 Generative AI and AI Applications**. The implementation is contained in a single notebook and demonstrates hands-on AI development skills: dataset preparation, model selection, transformer fine-tuning, loss-function adjustment, evaluation, multilingual inference testing, and prompt-based generation.
 
 > This is a research and learning prototype, not a clinical, diagnostic, or crisis-intervention tool.
 
@@ -18,23 +18,23 @@ The project was developed for the University of Warwick MSBA module **IB9LQ0 Gen
     └── mental_health_sentiment_analysis_supportive_response.ipynb
 ```
 
-The notebook includes:
+The notebook demonstrates:
 
 - Dataset loading with `kagglehub`
 - Text cleaning and label mapping
 - Stratified train, validation, and test splitting
 - XLM-RoBERTa tokenization
 - A custom PyTorch `Dataset`
-- Fine-tuning configuration for `xlm-roberta-base`
-- A custom Hugging Face `Trainer` with weighted cross-entropy loss
-- Model evaluation with classification report and confusion matrix
+- Model selection and fine-tuning configuration for `xlm-roberta-base`
+- A custom Hugging Face `Trainer` with weighted cross-entropy loss for imbalanced labels
+- Model training, validation monitoring, and test-set evaluation
 - Saved-model loading for inference
 - English, Japanese, Mandarin, and Spanish prediction tests
-- FLAN-T5 Large prompt-based supportive response generation
+- FLAN-T5 Large prompt design for supportive response generation
 
 ## Task Framing
 
-The notebook treats mental health text analysis as a seven-class classification task:
+I treated mental health text analysis as a seven-class supervised classification task:
 
 | Label | Description in the notebook |
 | --- | --- |
@@ -46,11 +46,11 @@ The notebook treats mental health text analysis as a seven-class classification 
 | Stress | Workload, pressure, insomnia, overwhelm |
 | Personality disorder | Intense emotions and unstable interpersonal patterns |
 
-After classification, the predicted label is passed into a FLAN-T5 prompt to generate a short supportive message.
+After classification, I passed the predicted label into a FLAN-T5 prompt to generate a short supportive message, turning the project from a pure classifier into a two-stage AI support prototype.
 
 ## Dataset
 
-The dataset is downloaded from Kaggle:
+I used a Kaggle dataset as the training source:
 
 ```python
 kagglehub.dataset_download("suchintikasarkar/sentiment-analysis-for-mental-health")
@@ -68,7 +68,7 @@ After dropping rows with missing `statement` values, the notebook uses **52,681 
 | Stress | 2,587 |
 | Personality disorder | 1,077 |
 
-The split is stratified:
+I used a stratified split to preserve class representation across training, validation, and test sets:
 
 | Split | Rows | Share |
 | --- | ---: | ---: |
@@ -80,7 +80,7 @@ The split is stratified:
 
 ### 1. Preprocessing and Tokenization
 
-The notebook maps text labels to integer IDs and tokenizes user statements with:
+I mapped text labels to integer IDs and tokenized user statements with:
 
 ```python
 AutoTokenizer.from_pretrained("xlm-roberta-base")
@@ -95,11 +95,11 @@ Tokenization settings:
 
 ### 2. Dataset Wrapper
 
-A custom `SentimentDataset` converts tokenized encodings and labels into PyTorch tensors for Hugging Face training.
+I implemented a custom `SentimentDataset` to convert tokenized encodings and labels into PyTorch tensors for Hugging Face training.
 
 ### 3. XLM-RoBERTa Fine-Tuning
 
-The classifier starts from `xlm-roberta-base` with a custom sequence-classification configuration:
+I selected `xlm-roberta-base` because the project needed multilingual text understanding rather than an English-only classifier. I adapted it for sequence classification with a custom configuration:
 
 | Setting | Value |
 | --- | --- |
@@ -110,11 +110,11 @@ The classifier starts from `xlm-roberta-base` with a custom sequence-classificat
 | Layer norm epsilon | `1e-7` |
 | Output attentions | `True` |
 
-The notebook reduces the default layer count from 12 to 8 to improve training efficiency and increases dropout to reduce overfitting risk.
+I reduced the default layer count from 12 to 8 to improve training efficiency and increased dropout to reduce overfitting risk.
 
 ### 4. Training Configuration
 
-Training uses Hugging Face `TrainingArguments`:
+I configured training with Hugging Face `TrainingArguments`:
 
 | Parameter | Value |
 | --- | --- |
@@ -127,7 +127,7 @@ Training uses Hugging Face `TrainingArguments`:
 | Save strategy | Epoch |
 | Mixed precision | `fp16=True` |
 
-To handle class imbalance, the notebook implements a custom `WeightedTrainer` that applies weighted cross-entropy loss using `compute_class_weight`.
+To handle class imbalance, I implemented a custom `WeightedTrainer` that applies weighted cross-entropy loss using `compute_class_weight`. This was important because labels such as **Personality disorder** had far fewer examples than **Normal** or **Depression**.
 
 ## Training Run
 
@@ -185,7 +185,7 @@ The confusion matrix shows that the model often confuses **Depression** and **Su
 
 ## Inference Tests
 
-The notebook includes custom prediction tests after saving and reloading the fine-tuned model.
+After training, I saved and reloaded the fine-tuned model to test it as an inference workflow rather than only reporting training metrics.
 
 English examples:
 
@@ -218,13 +218,13 @@ These tests show that XLM-RoBERTa can process multilingual inputs, but reliable 
 
 ## Response Generation
 
-The second part of the notebook uses:
+For the generative AI layer, I used:
 
 ```python
 pipeline("text2text-generation", model="google/flan-t5-large")
 ```
 
-The prompt provides two few-shot examples:
+I designed a few-shot prompt with two examples:
 
 - Depression-style input -> supportive reassurance
 - Suicidal-style input -> supportive, help-seeking language
@@ -239,7 +239,7 @@ Generation settings:
 | Top-p | 0.9 |
 | Sampling | Enabled |
 
-The notebook demonstrates that repeated generation for the same input can produce different responses, because sampling is enabled. It also shows that multilingual input can be classified, while generated responses remain English-only.
+I enabled sampling with `temperature=0.8` and `top_p=0.9`, then tested repeated generation for the same input. This showed that the response layer can produce varied supportive messages, but also highlighted a control issue: in sensitive mental health contexts, variation must be balanced with safety and consistency. The tests also showed that multilingual input could be classified, while generated responses remained English-only.
 
 ## How to Run
 
