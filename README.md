@@ -1,33 +1,64 @@
 # Multilingual Mental Health Sentiment Analysis & Response Generation
 
-This project explores how generative AI and transformer-based NLP can support early mental health signal detection from multilingual user-written text. The system combines a fine-tuned XLM-RoBERTa classifier with a FLAN-T5 response generator to classify mental health-related language and produce short supportive messages.
+An academic NLP prototype that combines **XLM-RoBERTa** classification with **FLAN-T5 Large** generation to detect mental-health-related signals from text and produce short supportive responses.
 
-## Project Overview
+The project was developed for the University of Warwick MSBA module **IB9LQ0 Generative AI and AI Applications**. The implementation is contained in a single notebook and demonstrates a full workflow from Kaggle data ingestion to model fine-tuning, evaluation, multilingual testing, and response generation.
 
-The notebook builds a two-stage NLP workflow:
+> This is a research and learning prototype, not a clinical, diagnostic, or crisis-intervention tool.
 
-1. **Mental health text classification** using XLM-RoBERTa.
-2. **Supportive response generation** using FLAN-T5 Large.
+## What This Repository Contains
 
-The classifier predicts seven categories:
+```text
+.
+├── README.md
+├── requirements.txt
+├── docs/
+│   └── Executive_summary.pdf
+└── notebooks/
+    └── mental_health_sentiment_analysis_supportive_response.ipynb
+```
 
-- Normal
-- Depression
-- Suicidal
-- Anxiety
-- Bipolar
-- Stress
-- Personality disorder
+The notebook includes:
 
-The goal is not to replace clinical judgement, but to prototype how multilingual language models can help identify emotional distress patterns and provide a compassionate first response.
+- Dataset loading with `kagglehub`
+- Text cleaning and label mapping
+- Stratified train, validation, and test splitting
+- XLM-RoBERTa tokenization
+- A custom PyTorch `Dataset`
+- Fine-tuning configuration for `xlm-roberta-base`
+- A custom Hugging Face `Trainer` with weighted cross-entropy loss
+- Model evaluation with classification report and confusion matrix
+- Saved-model loading for inference
+- English, Japanese, Mandarin, and Spanish prediction tests
+- FLAN-T5 Large prompt-based supportive response generation
+
+## Task Framing
+
+The notebook treats mental health text analysis as a seven-class classification task:
+
+| Label | Description in the notebook |
+| --- | --- |
+| Normal | Non-distress or ordinary positive/neutral text |
+| Depression | Low mood, hopelessness, loss of joy |
+| Suicidal | Crisis-like or self-harm-related language |
+| Anxiety | Panic, fear, spiralling thoughts |
+| Bipolar | Mood fluctuation patterns |
+| Stress | Workload, pressure, insomnia, overwhelm |
+| Personality disorder | Intense emotions and unstable interpersonal patterns |
+
+After classification, the predicted label is passed into a FLAN-T5 prompt to generate a short supportive message.
 
 ## Dataset
 
-The project uses a Kaggle mental health text dataset containing user statements labelled across seven categories. After preprocessing, the dataset contained **52,681 records**.
+The dataset is downloaded from Kaggle:
 
-Class distribution:
+```python
+kagglehub.dataset_download("suchintikasarkar/sentiment-analysis-for-mental-health")
+```
 
-| Category | Records |
+After dropping rows with missing `statement` values, the notebook uses **52,681 records**.
+
+| Class | Count |
 | --- | ---: |
 | Normal | 16,343 |
 | Depression | 15,404 |
@@ -37,70 +68,178 @@ Class distribution:
 | Stress | 2,587 |
 | Personality disorder | 1,077 |
 
-Because the dataset is imbalanced, the training workflow uses class weights through a custom `WeightedTrainer`.
+The split is stratified:
 
-## Methodology
+| Split | Rows | Share |
+| --- | ---: | ---: |
+| Train | 31,608 | 60% |
+| Validation | 10,536 | 20% |
+| Test | 10,537 | 20% |
 
-The classification pipeline includes:
+## Model Pipeline
 
-- Text cleaning and label mapping
-- Train, validation, and test split
-- XLM-RoBERTa tokenization with a maximum sequence length of 128
-- Fine-tuning `xlm-roberta-base` for seven-way classification
-- Increased dropout to reduce overfitting
-- Reduced transformer depth from 12 to 8 layers for efficiency
-- Weighted cross-entropy loss for minority-class handling
-- Evaluation with precision, recall, F1-score, accuracy, and confusion matrix
+### 1. Preprocessing and Tokenization
 
-The response generation pipeline uses:
+The notebook maps text labels to integer IDs and tokenizes user statements with:
 
-- `google/flan-t5-large`
-- Few-shot prompt examples for empathetic response style
-- Temperature and top-p sampling for varied but concise responses
+```python
+AutoTokenizer.from_pretrained("xlm-roberta-base")
+```
 
-## Results
+Tokenization settings:
 
-The fine-tuned classifier achieved:
+- `padding=True`
+- `truncation=True`
+- `max_length=128`
+- `return_tensors="pt"`
+
+### 2. Dataset Wrapper
+
+A custom `SentimentDataset` converts tokenized encodings and labels into PyTorch tensors for Hugging Face training.
+
+### 3. XLM-RoBERTa Fine-Tuning
+
+The classifier starts from `xlm-roberta-base` with a custom sequence-classification configuration:
+
+| Setting | Value |
+| --- | --- |
+| Number of labels | 7 |
+| Hidden dropout | 0.3 |
+| Attention dropout | 0.3 |
+| Hidden layers | 8 |
+| Layer norm epsilon | `1e-7` |
+| Output attentions | `True` |
+
+The notebook reduces the default layer count from 12 to 8 to improve training efficiency and increases dropout to reduce overfitting risk.
+
+### 4. Training Configuration
+
+Training uses Hugging Face `TrainingArguments`:
+
+| Parameter | Value |
+| --- | --- |
+| Learning rate | `2e-5` |
+| Train batch size | 16 |
+| Eval batch size | 4 |
+| Epochs | 6 |
+| Weight decay | 0.01 |
+| Evaluation strategy | Epoch |
+| Save strategy | Epoch |
+| Mixed precision | `fp16=True` |
+
+To handle class imbalance, the notebook implements a custom `WeightedTrainer` that applies weighted cross-entropy loss using `compute_class_weight`.
+
+## Training Run
+
+The recorded notebook run completed **11,856 training steps across 6 epochs**.
+
+Training runtime:
+
+- **2,861 seconds**
+- Approximately **47 minutes 39 seconds**
+- GPU-backed Colab environment
+
+Validation loss by epoch:
+
+| Epoch | Training Loss | Validation Loss |
+| ---: | ---: | ---: |
+| 1 | 0.9939 | 0.8754 |
+| 2 | 0.8052 | 0.7999 |
+| 3 | 0.7449 | 0.8170 |
+| 4 | 0.4406 | 0.6787 |
+| 5 | 0.6643 | 0.6550 |
+| 6 | 0.4409 | 0.6570 |
+
+Final validation evaluation:
+
+```text
+eval_loss: 0.6570
+eval_runtime: 32.08 seconds
+eval_samples_per_second: 328.41
+eval_steps_per_second: 82.10
+```
+
+## Test Results
+
+On the 10,537-row test set:
 
 | Metric | Score |
 | --- | ---: |
-| Accuracy | 78% |
-| Macro F1 | 75% |
-| Weighted F1 | 79% |
+| Accuracy | 0.78 |
+| Macro F1 | 0.75 |
+| Weighted F1 | 0.79 |
 
-Strongest categories:
+Per-class performance:
 
-- Normal: F1 0.91
-- Anxiety: F1 0.82
-- Bipolar: F1 0.82
+| Class | Precision | Recall | F1 | Support |
+| --- | ---: | ---: | ---: | ---: |
+| Normal | 0.98 | 0.85 | 0.91 | 3,269 |
+| Depression | 0.80 | 0.67 | 0.73 | 3,081 |
+| Suicidal | 0.65 | 0.79 | 0.72 | 2,131 |
+| Anxiety | 0.79 | 0.86 | 0.82 | 768 |
+| Bipolar | 0.80 | 0.85 | 0.82 | 556 |
+| Stress | 0.50 | 0.85 | 0.63 | 517 |
+| Personality disorder | 0.59 | 0.69 | 0.64 | 215 |
 
-Harder categories:
+The confusion matrix shows that the model often confuses **Depression** and **Suicidal**, and some examples expected as **Bipolar**, **Personality disorder**, or **Normal** are predicted as **Stress**, **Depression**, or **Anxiety**. This reflects a key limitation of mental health text classification: categories can overlap semantically even when labels are mutually exclusive.
 
-- Stress: F1 0.63
-- Personality disorder: F1 0.64
+## Inference Tests
 
-The confusion matrix showed overlap between depression and suicidal language, which is expected because the two categories can share similar lexical and emotional signals. Some multilingual examples performed well, but non-English prediction consistency still needs improvement.
+The notebook includes custom prediction tests after saving and reloading the fine-tuned model.
 
-## Key Learnings
+English examples:
 
-- Class weighting improves fairness toward underrepresented labels, but does not fully solve semantic overlap between mental health categories.
-- XLM-RoBERTa is useful for **multilingual experimentation**, though fine-tuning data language coverage strongly affects real-world robustness.
-- Generating empathetic responses requires additional safety design, especially for crisis-related or self-harm inputs.
-- A production version would need stronger guardrails, escalation guidance, human review, and domain-specific validation.
+| Expected | Predicted | Confidence |
+| --- | --- | ---: |
+| Normal | Normal | 99.6% |
+| Depression | Depression | 52.9% |
+| Suicidal | Stress | 96.1% |
+| Anxiety | Anxiety | 98.8% |
+| Bipolar | Stress | 73.4% |
+| Stress | Stress | 96.7% |
+| Personality disorder | Depression | 70.0% |
 
-## Repository Structure
+Multilingual examples:
 
-```text
-.
-├── README.md
-├── requirements.txt
-├── notebooks/
-│   └── mental_health_sentiment_analysis_supportive_response.ipynb
-└── docs/
-    ├── Group6_Executive_summary.pdf
-    ├── IB9LQ0-Group-Assignment-2024-2025.pdf
-    └── portfolio-notion-draft.md
+| Language | Expected | Predicted | Confidence |
+| --- | --- | --- | ---: |
+| Japanese | Normal | Normal | 99.7% |
+| Japanese | Depression | Anxiety | 99.3% |
+| Japanese | Suicidal | Suicidal | 88.8% |
+| Mandarin | Anxiety | Anxiety | 99.2% |
+| Mandarin | Bipolar | Suicidal | 42.7% |
+| Mandarin | Stress | Stress | 47.5% |
+| Mandarin | Personality disorder | Stress | 42.1% |
+| Spanish | Normal | Normal | 48.7% |
+| Spanish | Anxiety | Depression | 56.5% |
+| Spanish | Depression | Depression | 73.4% |
+
+These tests show that XLM-RoBERTa can process multilingual inputs, but reliable multilingual performance would require stronger multilingual evaluation data and additional calibration.
+
+## Response Generation
+
+The second part of the notebook uses:
+
+```python
+pipeline("text2text-generation", model="google/flan-t5-large")
 ```
+
+The prompt provides two few-shot examples:
+
+- Depression-style input -> supportive reassurance
+- Suicidal-style input -> supportive, help-seeking language
+
+Generation settings:
+
+| Parameter | Value |
+| --- | --- |
+| Max length | 80 |
+| Number of responses | 1 |
+| Temperature | 0.8 |
+| Top-p | 0.9 |
+| Sampling | Enabled |
+
+The notebook demonstrates that repeated generation for the same input can produce different responses, because sampling is enabled. It also shows that multilingual input can be classified, while generated responses remain English-only.
 
 ## How to Run
 
@@ -116,8 +255,34 @@ Open the notebook:
 jupyter notebook notebooks/mental_health_sentiment_analysis_supportive_response.ipynb
 ```
 
-The notebook downloads data through Kaggle tooling and Hugging Face models. You may need Kaggle credentials and sufficient compute for transformer fine-tuning.
+Notes:
 
-## Ethical Note
+- The notebook was run in a GPU-backed environment.
+- Kaggle access may require credentials depending on the runtime.
+- Hugging Face public model downloads require internet access.
+- The fine-tuned model directory `fine-tuned-xlmr/` is not included in this repository.
+- Large generated model weights are intentionally excluded from Git.
 
-This project is an academic prototype. It should not be used for diagnosis, crisis triage, or treatment decisions. Mental health AI systems require clinical validation, safety escalation pathways, privacy controls, bias testing, and human oversight before deployment.
+## Limitations
+
+- The model is trained on labelled text data, not clinically validated mental health assessments.
+- The labels simplify complex and overlapping mental health states.
+- Minority classes remain harder despite weighted loss.
+- Some high-confidence predictions are wrong, which is risky in sensitive domains.
+- The generation component lacks crisis-specific guardrails and escalation logic.
+- The response generator outputs English even when the input is multilingual.
+- A real deployment would require privacy design, human review, safety filters, bias testing, and clinical evaluation.
+
+## Next Improvements
+
+- Add stronger safety handling for suicidal or crisis-like inputs.
+- Evaluate with balanced multilingual test sets.
+- Add confidence thresholds and abstention when predictions are uncertain.
+- Compare XLM-RoBERTa with other multilingual encoders.
+- Add model cards and data cards for responsible AI documentation.
+- Fine-tune or prompt the generation model for multilingual supportive responses.
+- Separate the notebook into reproducible scripts for training, evaluation, and inference.
+
+## Ethical Disclaimer
+
+This repository is for academic demonstration only. It should not be used to diagnose, triage, or provide treatment for mental health conditions. If used as the basis for future work, it must include expert review, escalation pathways, and safeguards for high-risk content.
