@@ -1,6 +1,6 @@
 # Multilingual Mental Health Sentiment Analysis & Response Generation
 
-An academic NLP prototype where I built and fine-tuned a transformer-based mental health text classifier, then connected it with a generative AI response layer. The project combines **XLM-RoBERTa** for multilingual classification and **FLAN-T5 Large** for supportive response generation.
+An NLP prototype where I built and fine-tuned a transformer-based mental health text classifier, then connected it with a generative AI response layer. The project combines **XLM-RoBERTa** for multilingual classification and **FLAN-T5 Large** for supportive response generation.
 
 The implementation is contained in a single notebook and demonstrates hands-on AI development skills: dataset preparation, model selection, transformer fine-tuning, loss-function adjustment, evaluation, multilingual inference testing, and prompt-based generation.
 
